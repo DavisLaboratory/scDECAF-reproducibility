@@ -1,0 +1,367 @@
+---
+title: "scmap"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# TM Lung 10X
+
+```{r}
+library(Seurat)
+library(SingleCellExperiment)
+library(scmap)
+library(scran)
+library(scater)
+```
+
+
+```{r}
+dir_names <- grep("Lung", list.dirs("../tabula_muris/droplet"), value = TRUE)
+seuratObjs <- list()
+
+for(j in seq_along(dir_names)){
+
+  projName <- gsub("(.*)/(.*)/(.*)","\\3", dir_names[j])
+  projName <- gsub("Lung-","", projName)
+  seuratObjs[[projName]] <- CreateSeuratObject(counts = Read10X(dir_names[j]))
+
+}
+
+
+# bcdata <- merge(seuratObjs[[1]],
+#                   y = Reduce(c,seuratObjs[-1]),
+#                   add.cell.ids = names(seuratObjs),
+#                   project = "lung-10x")
+# 
+# bcdata
+# 
+# bcdata <- SCTransform(object = bcdata, verbose = FALSE, variable.features.n = 3000)
+# bcdata
+
+load("../tabula_muris/TM_lung_10X_seuratObj.RData")
+bcdata
+
+meta <- read.csv("../tabula_muris/annotations_droplet.csv") 
+meta <- meta[meta$tissue == "Lung",]
+
+meta$cell_id <- paste0(meta$cell,"-1")
+
+
+
+celltypes <- meta$cell_ontology_class
+names(celltypes) <- meta$cell_id
+
+query.se <- SingleCellExperiment(assays=list(logcounts=as.matrix(GetAssayData(bcdata, "data"))))
+rowData(query.se)$feature_symbol <- rownames(query.se)
+
+```
+
+
+```{r}
+countdata <- read.csv("../human_lung_cell_atlas/mouse_droplet_TMS_UMIs.csv")
+meta <- read.csv("../human_lung_cell_atlas/mouse_droplet_TMS_metadata.csv")
+
+rownames(countdata) <- countdata$X
+countdata$X <- NULL
+
+
+# using Seurat for normalization --- 
+
+
+refdata <- CreateSeuratObject(counts = countdata)
+refdata <- SCTransform(object = refdata, verbose = FALSE, variable.features.n = 3000)
+refdata
+
+
+
+colData <- DataFrame(meta)
+
+hlca.se <- SingleCellExperiment(assays=list(logcounts=as.matrix(GetAssayData(refdata, "data"))),
+                                colData=colData)
+
+
+rowData(hlca.se)$feature_symbol <- rownames(hlca.se)
+
+
+```
+
+
+```{r}
+
+hlca.se <- selectFeatures(hlca.se, suppress_plot = FALSE)
+hlca.se <- indexCell(hlca.se)
+
+scmapCell_TM_lung_10X_results <- scmapCell(
+  query.se, 
+  list(
+    hlca = metadata(hlca.se)$scmap_cell_index
+  )
+)
+
+
+
+scmapCell_clusters_TMLung10X <- scmapCell2Cluster(
+  scmapCell_TM_lung_10X_results, 
+  list(
+    as.character(hlca.se$free_annotation)
+  )
+)
+
+
+head(scmapCell_clusters_TMLung10X$scmap_cluster_labs)
+
+
+
+# plot results
+load("scmap_preds_TM_lung_10X.RData")
+
+plot(
+  getSankey(
+    celltypes,
+    scmapCell_clusters_TMLung10X$scmap_cluster_labs,
+    
+    #plot_height = 400
+  )
+)
+
+# save results
+# save(scmapCell_clusters_TMLung10X, file="scmap_preds_TM_lung_10X.RData")
+```
+
+
+
+# Purified PBMC using PBMC8k as reference
+
+```{r}
+
+# Reference
+# ref <- CreateSeuratObject(counts = Read10X("../10X/pbmc8k/"))
+# 
+# pbmc_meta <- read.csv("../10X/pbmc8k/pbmc8k_Cole2019_labels.csv")
+# 
+# ref <- ref[,colnames(ref) %in% pbmc_meta$x]
+# pbmc_meta <- pbmc_meta[match(colnames(ref), pbmc_meta$x),]
+# 
+# ref$celltype <- pbmc_meta$labels
+# 
+# # seurat object
+# ref <- SCTransform(object = ref, verbose = FALSE, variable.features.n = 3000)
+# save(ref, file= "../pbmc8k_3k_hvg_seuratObj.RData")
+
+load("../pbmc8k_3k_hvg_seuratObj.RData")
+ref
+
+# se object
+ref.se <- SingleCellExperiment(assays=list(logcounts=as.matrix(GetAssayData(ref, "data"))))
+rowData(ref.se)$feature_symbol <- rownames(ref.se)
+
+all(colnames(ref.se) == colnames(ref))
+# downsample to 2000 cells ---
+set.seed(42)
+
+i <- sample(seq_len(ncol(ref.se)), 2000, replace = FALSE)
+
+
+ref.se <- ref.se[,i]
+
+
+
+
+# query
+load("../sorted_pbmc_seuratObj_5k_hvg.RData")
+hSortedPBMC.se <- SingleCellExperiment(assays=list(logcounts=as.matrix(GetAssayData(sorted.pbmc, "data"))))
+rowData(hSortedPBMC.se)$feature_symbol <- rownames(hSortedPBMC.se)
+```
+
+
+```{r}
+
+ref.se <- selectFeatures(ref.se, suppress_plot = FALSE)
+ref.se <- indexCell(ref.se)
+
+scmapCell_soretd_pbmc_results <- scmapCell(
+  hSortedPBMC.se, 
+  list(
+    pbmc8k = metadata(ref.se)$scmap_cell_index
+  )
+)
+
+
+
+scmapCell_clusters_sortedpbmc <- scmapCell2Cluster(
+  scmapCell_soretd_pbmc_results, 
+  list(
+    as.character(ref$celltype)[i]
+  )
+)
+
+
+plot(
+  getSankey(
+    gsub("(.*)_(.*)","\\1", names(sorted.pbmc$orig.ident)),
+    scmapCell_clusters_sortedpbmc$scmap_cluster_labs,
+    
+    #plot_height = 400
+  )
+)
+
+#save(scmapCell_clusters_sortedpbmc, file="sorted_pbmc_scmap_preds.RData")
+
+```
+
+
+
+# Pancreas using Seger as reference and baron as query
+
+```{r}
+library(scRNAseq)
+
+
+baron <- BaronPancreasData('human')
+seger <- SegerstolpePancreasData()
+
+
+library(scran)
+library(scater)
+
+clusters <- quickCluster(baron)
+baron <- computeSumFactors(baron, clusters=clusters)
+summary(sizeFactors(baron))
+baron <- logNormCounts(baron)
+
+
+clusters <- quickCluster(seger)
+seger <- computeSumFactors(seger, clusters=clusters)
+summary(sizeFactors(seger))
+seger <- logNormCounts(seger)
+
+
+label_isnot_na <- which(!is.na(seger$`cell type`))
+
+
+
+### run predictions
+
+rowData(seger)$feature_symbol <- rownames(seger)
+
+seger <- seger[,label_isnot_na]
+
+ref.se <- selectFeatures(seger, suppress_plot = FALSE)
+ref.se <- indexCell(ref.se)
+
+
+rowData(baron)$feature_symbol <- rownames(baron)
+
+
+scmapCell_baron_pancreas_results <- scmapCell(
+  baron, 
+  list(
+    seger = metadata(ref.se)$scmap_cell_index
+  )
+)
+
+
+
+scmapCell_clusters_baron <- scmapCell2Cluster(
+  scmapCell_baron_pancreas_results, 
+  list(
+    as.character(colData(ref.se)$`cell type`)
+  )
+)
+
+
+plot(
+  getSankey(
+    baron$label,
+    scmapCell_clusters_baron$scmap_cluster_labs,
+    
+    #plot_height = 400
+  )
+)
+
+#save(scmapCell_clusters_baron, file="baron_pancreas_scmap_preds.RData")
+
+
+```
+
+# Dentate Gyrus
+
+```{r}
+
+## reference----
+meta <- read.delim("../cortext_linnarssonlab/GSE104323_metadata_barcodes_24185cells.txt") # appropriate as reference
+table(meta$characteristics..cell.cluster)
+
+meta$cell_id <- paste0("X", gsub("-",".", meta$Sample.name..24185.single.cells.))
+
+countdata <- read.delim("../cortext_linnarssonlab/GSE104323_10X_expression_data_V2.tab")
+rownames(countdata) <- countdata$cellid
+countdata$cellid <- NULL
+
+refdata <- SingleCellExperiment(assays=list(counts=as.matrix(countdata)))
+
+clusters <- quickCluster(refdata)
+refdata <- computeSumFactors(refdata, clusters=clusters)
+refdata <- logNormCounts(refdata)
+rowData(refdata)$feature_symbol <- rownames(refdata)
+
+
+# query -----
+countdata <- read.delim("../cortext_linnarssonlab/GSE95315_10X_expression_data_v2.tab") # appropriate as query
+table(as.character(countdata[2,]))
+query_labels <- as.character(countdata[2,])[-1]
+rownames(countdata) <- countdata$cellid
+countdata <- countdata[-c(1:2),]
+
+countdata$cellid <- NULL
+
+
+
+
+brain_query <- SingleCellExperiment(assays=list(counts=data.matrix(countdata)))
+
+clusters <- quickCluster(brain_query)
+brain_query <- computeSumFactors(brain_query, clusters)
+brain_query <- logNormCounts(brain_query)
+rowData(brain_query)$feature_symbol <- rownames(brain_query)
+
+
+# prediction ----
+
+refdata <- selectFeatures(refdata, suppress_plot = FALSE)
+refdata <- indexCell(refdata)
+
+
+
+scmapCell_brain_results <- scmapCell(
+  brain_query, 
+  list(
+    dentateGyrus = metadata(refdata)$scmap_cell_index
+  )
+)
+
+
+
+scmapCell_clusters_brain <- scmapCell2Cluster(
+  scmapCell_brain_results, 
+  list(
+    meta$characteristics..cell.cluster[match(colnames(refdata), meta$cell_id)]
+  )
+)
+
+
+plot(
+  getSankey(
+    query_labels,
+    scmapCell_clusters_brain$scmap_cluster_labs,
+    
+    #plot_height = 400
+  )
+)
+
+#save(scmapCell_clusters_brain, file="brain_scmap_preds.RData")
+
+```
