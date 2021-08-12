@@ -239,15 +239,20 @@ summary(sizeFactors(seger))
 seger <- logNormCounts(seger)
 
 
-label_isnot_na <- which(!is.na(seger$`cell type`))
+# drop unclassified endocrine (n=41 cells), unclassified cell (n=2) and coexpression (n=39)
+label_isnot_na <- (!is.na(seger$`cell type`))
+valid_labels <- (!seger$`cell type` %in% c("unclassified cell", "unclassified endocrine cell",
+                                             "co-expression cell"))
 
 
+
+table(label_isnot_na & valid_labels)
 
 ### run predictions
 
 rowData(seger)$feature_symbol <- rownames(seger)
 
-seger <- seger[,label_isnot_na]
+seger <- seger[,label_isnot_na & valid_labels]
 
 ref.se <- selectFeatures(seger, suppress_plot = FALSE)
 ref.se <- indexCell(ref.se)
@@ -256,7 +261,7 @@ ref.se <- indexCell(ref.se)
 rowData(baron)$feature_symbol <- rownames(baron)
 
 
-scmapCell_baron_pancreas_results <- scmapCell(
+scmapCell_baron <- scmapCell(
   baron, 
   list(
     seger = metadata(ref.se)$scmap_cell_index
@@ -265,8 +270,8 @@ scmapCell_baron_pancreas_results <- scmapCell(
 
 
 
-scmapCell_clusters_baron <- scmapCell2Cluster(
-  scmapCell_baron_pancreas_results, 
+scmapCluster_baron <- scmapCell2Cluster(
+  scmapCell_baron, 
   list(
     as.character(colData(ref.se)$`cell type`)
   )
@@ -276,13 +281,13 @@ scmapCell_clusters_baron <- scmapCell2Cluster(
 plot(
   getSankey(
     baron$label,
-    scmapCell_clusters_baron$scmap_cluster_labs,
+    scmapCluster_baron$scmap_cluster_labs,
     
     #plot_height = 400
   )
 )
 
-#save(scmapCell_clusters_baron, file="baron_pancreas_scmap_preds.RData")
+# save(scmapCluster_baron, scmapCell_baron, file="../benchmarking/RData_files_for_method_evals/0821_baron_pancreas_scmap_cell_and_cluster_preds.RData")
 
 
 ```

@@ -125,10 +125,18 @@ library(scRNAseq)
 baron <- BaronPancreasData('human')
 seger <- SegerstolpePancreasData()
 
-label_isnot_na <- which(!is.na(seger$`cell type`))
+
+# drop unclassified endocrine (n=41 cells), unclassified cell (n=2) and coexpression (n=39)
+label_isnot_na <- (!is.na(seger$`cell type`))
+valid_labels <- (!seger$`cell type` %in% c("unclassified cell", "unclassified endocrine cell",
+                                             "co-expression cell"))
 
 
-ref <- CreateSeuratObject(counts = assay(seger)[, label_isnot_na])
+
+table(label_isnot_na & valid_labels)
+
+
+ref <- CreateSeuratObject(counts = assay(seger)[, label_isnot_na & valid_labels])
 baron_query <- CreateSeuratObject(counts = assay(baron))
 
 
@@ -138,8 +146,9 @@ baron_query <- SCTransform(object = baron_query, verbose = FALSE, variable.featu
 
 pancreas.anchors <- FindTransferAnchors(reference = ref, query = baron_query, 
     dims = 1:30, k.filter = 2000) # k.filter = 2000
-predictions <- TransferData(anchorset = pancreas.anchors, refdata = seger$`cell type`[label_isnot_na], 
-    dims = 1:30)
+predictions <- TransferData(anchorset = pancreas.anchors, 
+                            refdata = seger$`cell type`[label_isnot_na & valid_labels], 
+                            dims = 1:30)
 baron_query <- AddMetaData(baron_query, metadata = predictions)
 
 
@@ -155,7 +164,7 @@ plot(
 
 
 
-# save(baron_query, file = "baron_pancreas_seurat_preds.RData")
+# save(baron_query, file = "../benchmarking/RData_files_for_method_evals/0821_baron_pancreas_seurat_preds.RData")
 ```
 
 

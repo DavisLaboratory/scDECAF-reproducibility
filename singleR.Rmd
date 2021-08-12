@@ -200,11 +200,19 @@ summary(sizeFactors(seger))
 seger <- logNormCounts(seger)
 
 
-label_isnot_na <- which(!is.na(seger$`cell type`))
+# drop unclassified endocrine (n=41 cells), unclassified cell (n=2) and coexpression (n=39)
+label_isnot_na <- (!is.na(seger$`cell type`))
+valid_labels <- (!seger$`cell type` %in% c("unclassified cell", "unclassified endocrine cell",
+                                             "co-expression cell"))
 
-pred.baron <- SingleR(test = baron, ref = seger[, label_isnot_na], 
+
+
+table(label_isnot_na & valid_labels)
+
+
+pred.baron <- SingleR(test = baron, ref = seger[, label_isnot_na & valid_labels], 
                       #assay.type.test="counts", assay.type.ref = "counts",
-    labels = seger$`cell type`[label_isnot_na])
+    labels = seger$`cell type`[label_isnot_na & valid_labels])
 
 
 plot(
@@ -216,7 +224,7 @@ plot(
   )
 )
 
-# save(pred.baron, file="baron_pancreas_SingleR_preds.RData")
+# save(pred.baron, file="../benchmarking/RData_files_for_method_evals/0821_baron_pancreas_SingleR_preds.RData")
 
 ```
 

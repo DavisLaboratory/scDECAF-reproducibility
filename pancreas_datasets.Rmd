@@ -61,12 +61,16 @@ library(ggplot2)
 library(scmap)
 
 
-devtools::load_all(path="../../scDECAF")
-library(scDECAF)
+# devtools::load_all(path="../../scDECAF")
+devtools::load_all(path="../scDECAF")
+# library(scDECAF)
 
 
-panglao <- read.delim("../PanglaoDB_markers_27_Mar_2020.tsv")
-cellmarker <- read.delim("../all_cell_markers.txt")
+# panglao <- read.delim("../PanglaoDB_markers_27_Mar_2020.tsv")
+# cellmarker <- read.delim("../all_cell_markers.txt")
+
+panglao <- read.delim("../benchmarking/PanglaoDB_markers_27_Mar_2020.tsv")
+cellmarker <- read.delim("../benchmarking/all_cell_markers.txt")
 ```
 
 # Baron 
@@ -85,6 +89,10 @@ bcdata <- RunUMAP(object = bcdata, features = VariableFeatures(object = bcdata),
                   reduction.key = 'sctUMAP_', reduction.name = 'sctumap')
 
 
+bcdata <- RunPCA(object = bcdata, features = VariableFeatures(object = bcdata),
+                  reduction.key = 'sctPCA_', reduction.name = 'sctpca')
+
+
 Idents(bcdata) <- bcdata$celltype
 
 
@@ -94,50 +102,56 @@ p1 <- DimPlot(bcdata, cols = zeileis_28) + theme_void()
 
 
 ```{r}
-immune_cells_panlog <- panglao[panglao$organ %in% "Pancreas", c("cell.type", "official.gene.symbol")]
+immune_cells_panlog <- panglao[panglao$organ %in% "Immune system", c("cell.type", "official.gene.symbol")]
 immune_cells_panlog <- unique(immune_cells_panlog)
-
-
 immune_cells_panlog <- split(immune_cells_panlog$official.gene.symbol, as.factor(immune_cells_panlog$cell.type))
 
+immune_cells_panlog <- immune_cells_panlog[c("T cytotoxic cells",
+                                             "Macrophages",
+                                             "Mast cells",
+                                             "T cells")]
 
 
 
-
-pancreas_markers <- cellmarker[cellmarker$tissueType %in% c("Pancreas","Pancreatic acinar tissue","Pancreatic islet"),]
+pancreas_markers <- panglao[panglao$organ %in% c("Pancreas","Vasculature"), c("cell.type", "official.gene.symbol")]
 #table(pb_markers$cellName)
 pancreas_markers <- unique(pancreas_markers)
-pancreas_markers <- split(pancreas_markers$geneSymbol, as.factor(pancreas_markers$cellName))
+pancreas_markers <- split(pancreas_markers$official.gene.symbol, as.factor(pancreas_markers$cell.type))
 
-# either replace Beta cell signature or drop highly expressed CD99 from endo signature shared with beta signature
-keep_pancreas <- c("Endocrine progenitor cell")
+pancreas_markers <- pancreas_markers[grep("Pericytes", names(pancreas_markers), invert = TRUE)]
 
-
-pancreas_markers <- pancreas_markers[keep_pancreas]
-
-
-pancreas_markers <- lapply(pancreas_markers, FUN=function(x) {
-  z <- unlist(strsplit(x, split = ","))
-  z <- unique(gsub(" |\\[|\\]","", z))
-})
-
-
-pancreas_markers[[1]] <- c(pancreas_markers[[1]], c("DISP2", 
-                                                    #"CD99" ,
-                                                    "LRP11",
-                                                    "SEZ6L2"
-                                                    #"SLC30A8"
-                                                    ))
 
 immune_cells_panlog <- c(immune_cells_panlog, pancreas_markers)
-immune_cells_panlog <- immune_cells_panlog[grep("Pancreatic progenitor cells", names(immune_cells_panlog), invert = TRUE)]
+
 
 dim(x = GetAssayData(object = bcdata, slot = 'data'))
 x <- GetAssayData(object = bcdata, slot = 'data') # same as x <- bcdata[["SCT"]]@data, contains log-normalised values
 
 hvg <- VariableFeatures(object = bcdata)
 
-target <- genesets2ids(x[match(hvg, rownames(x)),], immune_cells_panlog) # x[match(hvg, rownames(x)),]
+cell_embeddings <- bcdata@reductions$sctumap@cell.embeddings
+# cell_embeddings <- bcdata@reductions$sctpca@cell.embeddings
+cell_embeddings <- cell_embeddings[match(colnames(x), rownames(cell_embeddings)),]
+
+
+x <- as.matrix(x)
+
+
+## apply geneset selection
+
+# selected_gs <- pruneGenesets(data = x, genesetlist = immune_cells_panlog,
+#                              hvg = hvg, embedding = cell_embeddings,
+#                              min_gs_size = 3, lambda = exp(-6.5))
+# 
+# 
+# 
+# as.character(selected_gs)
+
+
+
+
+# target <- genesets2ids(x[match(hvg, rownames(x)),], immune_cells_panlog[selected_gs]) # x[match(hvg, rownames(x)),]
+target <- genesets2ids(x[match(hvg, rownames(x)),], immune_cells_panlog)
  
 colSums(target)
 
@@ -152,15 +166,11 @@ xt <- x[match(rownames(target), rownames(x)),]
 
 
 ```{r}
-cell_embeddings <- bcdata@reductions$sctumap@cell.embeddings
-cell_embeddings <- cell_embeddings[match(colnames(xt), rownames(cell_embeddings)),]
-
-
-x <- as.matrix(x)
 
 ann_res <- scDECAF(data = x, gs = target, standardize = TRUE, 
-                   hvg = hvg, k = 30, embedding = cell_embeddings,
-                   n_components = ncol(target) - 1, max_iter = 2)
+                   hvg = hvg, k = 10, embedding = cell_embeddings,
+                   n_components = ncol(target) - 1, max_iter = 2,
+                   thresh = 0.5)
 
 
 preds <- ann_res$pred_celltype
@@ -182,7 +192,7 @@ p3 <- DimPlot(bcdata, cols = "Paired") + theme_void() # zeileis_28
 
 
 table(preds2, bcdata$celltype)
-
+# save(ann_res, file = "../benchmarking/RData_files_for_method_evals/0821_baron_scDECAF.RData")
 
 pred_scores <- ann_res$uncertainty
 names(pred_scores) <- ann_res$cell
@@ -228,6 +238,7 @@ plot(
 ```
 
 
+<!-- The rest of the document runs scDECAF on other pancreatic datasets not included in paper analyses -->
 # Xin et al.
 
 ```{r}
