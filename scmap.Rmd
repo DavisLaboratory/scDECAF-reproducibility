@@ -269,6 +269,8 @@ scmapCell_baron <- scmapCell(
 )
 
 
+nn_idx <- t(scmapCell_baron$seger$cells)
+scmap_cell_preds <- colData(seger)$'cell type'[nn_idx[,1]]
 
 scmapCluster_baron <- scmapCell2Cluster(
   scmapCell_baron, 
@@ -287,7 +289,7 @@ plot(
   )
 )
 
-# save(scmapCluster_baron, scmapCell_baron, file="../benchmarking/RData_files_for_method_evals/0821_baron_pancreas_scmap_cell_and_cluster_preds.RData")
+# save(scmapCluster_baron, scmap_cell_preds, file="../benchmarking/RData_files_for_method_evals/160821_baron_pancreas_scmap_cell_and_cluster_preds.RData")
 
 
 ```
