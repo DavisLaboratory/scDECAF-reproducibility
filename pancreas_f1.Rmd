@@ -1,0 +1,101 @@
+---
+title: "pancreas_f1"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# pancreas
+## F1 scores for Pancreas
+```{r}
+
+
+library(scRNAseq)
+library(ggplot2)
+library(plyr)
+
+baron <- BaronPancreasData('human')
+
+load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/pancreas.RData")
+
+seurat_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/0821_baron_pancreas_seurat_preds.RData")
+scmap_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/160821_baron_pancreas_scmap_cell_and_cluster_preds.RData")
+singler_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/0821_baron_pancreas_SingleR_preds.RData")
+scdecaf_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/0821_baron_scDECAF.RData")
+cellid_preds <- load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/pancreas_cellid.RData")
+aucell_preds <- load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/pancreas_aucell.RData")
+vision_preds <- load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/pancreas_vision.RData")
+chetah_preds <- load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/chetah.RData")
+
+ggdat_pancreas <- data.frame(cells = names(pancreas$celltype),
+                         dataset = rep("pancreas", nrow(ann_res)),
+                         true_labels  = pancreas$celltype,
+                         scDECAF = ann_res$reassigned_celltype,
+                         scmapCluster = as.character(scmapCluster_baron$scmap_cluster_labs),
+                         scmapCell = scmap_cell_preds,
+                         singler = pred.baron$labels,
+                         seurat = baron_query$predicted.id,
+                         cellid = pancreas_cellid$predict,
+                         aucell = pancreas_aucell$predict,
+                         vision = pancreas_vision$predict,
+                         chetah = input$celltype_CHETAH)
+                         #singscore = pancreas_singscore$predict)
+
+
+ggdat_pancreas <- ggdat_pancreas[ggdat_pancreas$true_labels %in% c("acinar", "beta", "delta", "activated_stellate", "ductal", "alpha", "epsilon", "gamma", "endothelial", "macrophage", "schwann", "mast"),]
+
+ggdat_pancreas <- reshape2::melt(ggdat_pancreas, id = c("cells","dataset","true_labels"), value.name = "celltypes", variable.name = "Methods")
+
+equivalent_labels <- list("acinar"= c("acinar","acinar cell", "Acinar cells"), "beta"=c("beta","beta cell","Beta cells"), "delta"= c("delta", "delta cell", "Delta cells"), "activated_stellate"= c("activated_stellate","PSC cell",	"Pancreatic stellate cells"), "ductal"=	c("ductal", "ductal cell",	"Ductal cells"), "alpha"= c("alpha", "alpha cell", "Alpha cells"), "epsilon"=	c("epsilon", "epsilon cell",	"Epsilon cells", "Endothelial cells (aorta)", "Endothelial cells (blood brain barrier)"), "gamma"=	c("gamma", "gamma cell",	"Gamma (PP) cells"), "endothelial"= c("endothelial", "endothelial","endothelial cell",	"Endothelial cells"), "macrophage"= c("macrophage", "MHC class II cell",	"Macrophages"), "schwann"= c("schwann", "Peri-islet Schwann cells"), "mast"=	c("mast", "mast cell",	"Mast cells"))
+
+
+#create label map
+eq_labs = ldply(equivalent_labels, cbind)
+label_map = eq_labs[, 1]
+names(label_map) = eq_labs[, 2]
+
+#transform labels
+ggdat_pancreas$celltypes = label_map[ggdat_pancreas$celltypes]
+ggdat_pancreas$celltypes[is.na(ggdat_pancreas$celltypes)] = 'Unassigned'
+
+per_cell_type_f1 = ddply(ggdat_pancreas, 'Methods', function(res) {
+  all_celltypes = unique(res$true_labels)
+  names(all_celltypes) = all_celltypes
+
+  ldply(all_celltypes, function(ctype) {
+    truth = res$true_labels %in% ctype
+    pred = res$celltypes %in% ctype
+    f1 = dcanr::performanceMeasure(pred, truth)
+    names(f1) = 'F1'
+    return(f1)
+  }, .id = 'Cell Type')
+})
+
+#write.csv(per_cell_type_f1, file = "pancreas_f1.csv")
+
+ggplot(per_cell_type_f1, aes(x=`Cell Type`, y = F1, color= Methods)) +
+  geom_jitter(width = 0.2) + scale_color_manual(values = c("cellid" = "blue",
+                                              "scmapCluster"="darkgreen", "singler"="green", "seurat"="orange", "scDECAF" = "red", "aucell" = "pink", "vision" = "purple")) +
+  labs(x="", y="Baron Pancreas")  +
+  theme_minimal() +
+   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size=11),
+         axis.title.y = element_text(vjust = 2, hjust = 0.5, size = 12), legend.position = "none") +
+  scale_x_discrete(expand=c(0.12, 0.01)) +
+  coord_fixed(ratio=2.5) 
+
+library(RColorBrewer)
+
+ggplot(per_cell_type_f1, aes(x=Methods, y = F1, fill=Methods)) +
+  geom_boxplot() +
+  scale_fill_brewer(palette = "Paired") +
+  labs(x="", y="F1 - Baron Pancreas")  +
+  theme_minimal() +
+   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size=11),
+         axis.title.y = element_text(vjust = 3, hjust = 0.5, size = 12), legend.position = "none") +
+  coord_fixed(ratio=2.5) +
+  scale_x_discrete(labels=c("cellid" = "CelliD",
+                                              "scmapCluster"="ScmapCluster", "scmapCell"="ScmapCell", "singler"="SingleR", "seurat"="Seurat", "scDECAF" = "scDECAF", "vision"="Vision", "aucell"="AUCell", "chetah"="CHETAH"))
+
+```
