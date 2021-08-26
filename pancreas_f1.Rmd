@@ -28,6 +28,7 @@ cellid_preds <- load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-
 aucell_preds <- load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/pancreas_aucell.RData")
 vision_preds <- load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/pancreas_vision.RData")
 chetah_preds <- load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/chetah.RData")
+cellassign_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/cellassign_fit_baron.RData")
 
 ggdat_pancreas <- data.frame(cells = names(pancreas$celltype),
                          dataset = rep("pancreas", nrow(ann_res)),
@@ -40,7 +41,8 @@ ggdat_pancreas <- data.frame(cells = names(pancreas$celltype),
                          cellid = pancreas_cellid$predict,
                          aucell = pancreas_aucell$predict,
                          vision = pancreas_vision$predict,
-                         chetah = input$celltype_CHETAH)
+                         chetah = input$celltype_CHETAH,
+                         cellassign = fit$cell_type)
                          #singscore = pancreas_singscore$predict)
 
 
@@ -73,7 +75,7 @@ per_cell_type_f1 = ddply(ggdat_pancreas, 'Methods', function(res) {
   }, .id = 'Cell Type')
 })
 
-#write.csv(per_cell_type_f1, file = "pancreas_f1.csv")
+write.csv(per_cell_type_f1, file = "pancreas_f1.csv")
 
 ggplot(per_cell_type_f1, aes(x=`Cell Type`, y = F1, color= Methods)) +
   geom_jitter(width = 0.2) + scale_color_manual(values = c("cellid" = "blue",
