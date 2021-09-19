@@ -164,6 +164,31 @@ xt <- x[match(rownames(target), rownames(x)),]
 
 ```
 
+```{r}
+# cellasssign?
+library(cellassign)
+library(SingleCellExperiment)
+
+# x2 <- GetAssayData(object = bcdata, slot = 'counts')
+# x2 <- x2[match(rownames(target), rownames(x2)),]
+# x2 <- as.matrix(x2)
+
+
+load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/cellassign_data.RData")
+
+
+sce <- SingleCellExperiment(list(counts = x2))
+
+fit <- em_result <- cellassign(sce,
+                                marker_gene_info = target,
+                                s = colSums(SummarizedExperiment::assay(sce, "counts")),
+                                # learning_rate = 1e-2,
+                               learning_rate = 0.3,
+                                shrinkage = TRUE,
+                               #threads = 10,
+                               #max_iter_em = 10,
+                                verbose = TRUE)
+```
 
 ```{r}
 

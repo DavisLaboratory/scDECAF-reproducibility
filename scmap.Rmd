@@ -19,7 +19,7 @@ library(scater)
 
 
 ```{r}
-dir_names <- grep("Lung", list.dirs("../tabula_muris/droplet"), value = TRUE)
+dir_names <- grep("Lung", list.dirs("tabula_muris/droplet"), value = TRUE)
 seuratObjs <- list()
 
 for(j in seq_along(dir_names)){
@@ -41,10 +41,10 @@ for(j in seq_along(dir_names)){
 # bcdata <- SCTransform(object = bcdata, verbose = FALSE, variable.features.n = 3000)
 # bcdata
 
-load("../tabula_muris/TM_lung_10X_seuratObj.RData")
+load("tabula_muris/TM_lung_10X_seuratObj.RData")
 bcdata
 
-meta <- read.csv("../tabula_muris/annotations_droplet.csv") 
+meta <- read.csv("tabula_muris/annotations_droplet.csv") 
 meta <- meta[meta$tissue == "Lung",]
 
 meta$cell_id <- paste0(meta$cell,"-1")
@@ -61,8 +61,8 @@ rowData(query.se)$feature_symbol <- rownames(query.se)
 
 
 ```{r}
-countdata <- read.csv("../human_lung_cell_atlas/mouse_droplet_TMS_UMIs.csv")
-meta <- read.csv("../human_lung_cell_atlas/mouse_droplet_TMS_metadata.csv")
+countdata <- read.csv("human_lung_cell_atlas/mouse_droplet_TMS_UMIs.csv")
+meta <- read.csv("human_lung_cell_atlas/mouse_droplet_TMS_metadata.csv")
 
 rownames(countdata) <- countdata$X
 countdata$X <- NULL
@@ -102,6 +102,8 @@ scmapCell_TM_lung_10X_results <- scmapCell(
 )
 
 
+nn_idx <- t(scmapCell_TM_lung_10X_results$hlca$cells)
+scmap_cell_preds <- as.character(hlca.se$free_annotation)[nn_idx[,1]]
 
 scmapCell_clusters_TMLung10X <- scmapCell2Cluster(
   scmapCell_TM_lung_10X_results, 
@@ -128,7 +130,7 @@ plot(
 )
 
 # save results
-# save(scmapCell_clusters_TMLung10X, file="scmap_preds_TM_lung_10X.RData")
+# save(scmapCell_clusters_TMLung10X, scmap_cell_preds, file="scmap_preds_TM_lung_10X_revisited_19092021.RData")
 ```
 
 

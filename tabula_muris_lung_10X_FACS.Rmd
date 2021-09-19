@@ -49,24 +49,6 @@ library(scmap)
 #source("scDECAF_devel.R")
 
 devtools::load_all("../scDECAF/")
-
-
-panglao <- read.delim("PanglaoDB_markers_27_Mar_2020.tsv", stringsAsFactors = FALSE)
-cellmarker <- read.delim("all_cell_markers.txt", stringsAsFactors = FALSE)
-
-# genesets2ids <- function(y, genesetlist){
-#   # target_symbols <- unique(unlist(genesetlist))
-#   # keep_idx <- unlist(limma::ids2indices(target_symbols,rownames(y)))
-#   INDX <- matrix(0, nrow = nrow(y), ncol= length(genesetlist),
-#                  dimnames = list(rownames(y), names(genesetlist)))
-#   gs_idx <- limma::ids2indices(genesetlist, rownames(y))
-# 
-#   for (i in names(gs_idx)){
-#      INDX[gs_idx[[i]],i] <- 1
-#      }
-#  
-#   INDX[rowSums(INDX)>0,]
-# }
 ```
 
 
@@ -110,8 +92,13 @@ celltypes <- meta$cell_ontology_class
 names(celltypes) <- meta$cell_id
 bcdata$celltype <- celltypes
 
-bcdata
 
+bcdata$celltype[bcdata$celltype==""] <- "unknown"
+#bcdata$celltype <- gsub("ciliated columnar cell of tracheobronchial tree","ciliated", bcdata$celltype)
+
+
+bcdata <- bcdata[,!bcdata$celltype %in% "unknown"]
+table(bcdata$celltype)
 
 bcdata <- SCTransform(object = bcdata, verbose = FALSE, variable.features.n = 5000)
 bcdata
@@ -127,10 +114,6 @@ bcdata <- RunUMAP(object = bcdata, features = VariableFeatures(object = bcdata),
 #                   reduction.key = 'sctsne_', reduction.name = 'sctsne')
 
 
-bcdata$celltype[bcdata$celltype==""] <- "unknown"
-
-
-bcdata$celltype <- gsub("ciliated columnar cell of tracheobronchial tree","ciliated", bcdata$celltype)
 
 
 
@@ -142,135 +125,84 @@ p1 <- DimPlot(bcdata, cols = godsnot_102, order = TRUE) + theme_void()
 
 
 ```{r}
-lung_markers <- cellmarker[cellmarker$tissueType %in% c("Lung"),]
-#table(pb_markers$cellName)
-lung_markers <- unique(lung_markers)
-lung_markers <- split(lung_markers$geneSymbol, as.factor(lung_markers$cellName))
+
+load("lung_mapping/LungMapping_PanglaoDB_HJW.Rdata")
+
+lung_label_panglao
+
+
+panglao <- read.delim("PanglaoDB_markers_27_Mar_2020.tsv", stringsAsFactors = FALSE)
+
+# lung_markers <- cellmarker[cellmarker$tissueType %in% c("Lung"),]
+# #table(pb_markers$cellName)
+# lung_markers <- unique(lung_markers)
+# lung_markers <- split(lung_markers$geneSymbol, as.factor(lung_markers$cellName))
+# 
+# 
+# 
+# lung_markers <- lapply(lung_markers, FUN=function(x) {
+#   z <- unlist(strsplit(x, split = ","))
+#   z <- unique(gsub(" |\\[|\\]","", z))
+# })
+# 
+# 
+# 
+# keep_lung <- c(#"Type I pneumocyte", 
+#                #"Type II pneumocyte",
+#                "Epithelial cell",
+#                "Endothelial cell",
+#                #"Clara cell", 
+#                #"Alveolar macrophage",
+#                #"Fibroblast", 
+#                #"Myeloid cell",
+#                "Pericyte","Myofibroblast")
+# 
+# lung_markers <- lung_markers[keep_lung]
 
 
 
-lung_markers <- lapply(lung_markers, FUN=function(x) {
-  z <- unlist(strsplit(x, split = ","))
-  z <- unique(gsub(" |\\[|\\]","", z))
-})
 
+lungs <- panglao[panglao$organ %in% unique(lung_label_panglao$PanglaoOrgan), 
+                 c("cell.type", "official.gene.symbol")]
 
-
-keep_lung <- c(#"Type I pneumocyte", 
-               #"Type II pneumocyte",
-               "Epithelial cell",
-               "Endothelial cell",
-               #"Clara cell", 
-               #"Alveolar macrophage",
-               #"Fibroblast", 
-               #"Myeloid cell",
-               "Pericyte","Myofibroblast")
-
-lung_markers <- lung_markers[keep_lung]
-
-
-
-
-lungs <- panglao[panglao$organ %in% "Lungs", c("cell.type", "official.gene.symbol")]
 lungs <- unique(lungs)
 lungs <- split(lungs$official.gene.symbol, as.factor(lungs$cell.type))
 
 
-keep_lung2 <- c("Ciliated cells","Alveolar macrophages",
-                "Pulmonary alveolar type II cells",
-                "Clara cells"
-                )
-lungs <- lungs[keep_lung2]
+keep <- unique(lung_label_panglao$Panglao)
 
+keep <- gsub("Basophil", "Basophils", keep)
+keep <- gsub("Neutrophil", "Neutrophils", keep)
+keep <- gsub("Eosinophil", "Eosinophils", keep)
 
+table(keep %in% names(lungs))
 
+lungs <- lungs[keep]
 
-immunes2 <- panglao[panglao$organ %in% "Immune system", c("cell.type", "official.gene.symbol")]
-immunes2 <- unique(immunes2)
-immunes2 <- split(immunes2$official.gene.symbol, as.factor(immunes2$cell.type))
-# 
-keep_immune2 <- c(#"T cells","NK cells",
-  "Monocytes",
-                  "Mast cells",
-                  #"B cells",
-                 #"T regulatory cells", "Plasmacytoid dendritic cells","Neutrophils",
-                 "Macrophages",
-  "Basophils","Natural killer T cells",
-                 #"Plasma cells"
-                 )
-
-
-
-
-immunes2 <- immunes2[keep_immune2]
-
-pb_markers <- cellmarker[cellmarker$tissueType %in% c("Peripheral blood"),]
-#table(pb_markers$cellName)
-pb_markers <- unique(pb_markers)
-pb_markers <- split(pb_markers$geneSymbol, as.factor(pb_markers$cellName))
-
-
-
-pb_markers <- lapply(pb_markers, FUN=function(x) {
-  z <- unlist(strsplit(x, split = ","))
-  z <- unique(gsub(" |\\[|\\]","", z))
-})
-
-
-keep_pb <- c(#"Naive CD4+ T cell", "Naive CD8+ T cell",
-          "CD8+ T cell", "CD4+ T cell",
-          "Natural killer cell",
-          "Natural killer T (NKT) cell",
-          "Neutrophil", 
-          #"Non-classical monocyte",
-          "Plasma cell",
-          #"Plasmacytoid dendritic cell",
-          "Dendritic cell",
-          #"Regulatory T (Treg) cell",
-          "Myeloid cell",
-          #"M1 macrophage","M2 macrophage",
-          #"Macrophage",
-          "Leukocyte",
-          "Fibroblast",
-          #"Classical monocyte",
-          "Basophil",
-          "B cell",
-          
-          "Regulatory T (Treg) cell"
-          #"T cell","T helper cell",
-          #"Memory T cell",
-          #"B cell",
-          #"Fibroblast", 
-          #"Plasma cell",
-          #"CD16+ dendritic cell"
-          #"CD4+ memory T cell","CD4+ T helper cell",
-          #"CD8+ cytotoxic T cell"
-          #"Monocyte"
-          )
-
-
-immunes <- pb_markers[keep_pb]
-
-
- immunes <- c(immunes, immunes2)
-
-ms <- read.delim("../../genomes/DATA/HMD_HumanPhenotype.rpt", header = FALSE)
-
-immune_markers <- lapply(immunes, FUN=function(x) {
-   genes <- ms$V5[match(x, ms$V1)]
-   genes[!is.na(genes)]
-})
-
-
-lungs <- lapply(lungs, FUN=function(x) {
-   genes <- ms$V5[match(x, ms$V1)]
-   genes[!is.na(genes)]
-})
-
-
-lung_markers <- c(immune_markers, lungs, lung_markers)
+names(lungs)
 
 ```
+
+
+```{r}
+# load Holly's curated list of signatures
+
+# load("lung_mapping/PanglaoDB_lungmarkers_HJW.Rdata")
+
+
+
+# map HS genes to MM genes
+ms <- read.delim("../../genomes/DATA/HMD_HumanPhenotype.rpt", header = FALSE)
+
+
+
+lung_markers <- lapply(lungs, FUN=function(x) {
+   genes <- ms$V5[match(x, ms$V1)]
+   genes[!is.na(genes)]
+})
+
+```
+
 
 ```{r}
 dim(x = GetAssayData(object = bcdata, slot = 'data'))
@@ -281,74 +213,27 @@ x <- as.matrix(x)
 hvg <- VariableFeatures(object = bcdata)
 
 
-## prepare some random genesets
-genepools <- rownames(bcdata)[!rownames(bcdata) %in% hvg]
-randomlist <- replicate(5, sample(hvg, 5), simplify = FALSE)
-names(randomlist) <- letters[seq_along(randomlist)]
-
-
-
-
 target <- scDECAF::genesets2ids(x[match(hvg, rownames(x)),], lung_markers) # x[match(hvg, rownames(x)),]
 
-n_genes_per_geneset <- colSums(target)
-n_genes_per_geneset[order(n_genes_per_geneset, decreasing = TRUE)]
+table(colSums(target) > 0)
 
-#target <- target[, colSums(target) >= 10]
+## prepare and save cellassign data
 
-#pp <- mean(colSums(target))
-#pp <- pp/nrow(target)
-#target <- cbind(target, Random1 = sample(c(0,1), size = nrow(target), replace = TRUE, prob = c(1-pp, pp)))
+x2 <- GetAssayData(object = bcdata, slot = 'counts')
+x2 <- x2[match(rownames(target), rownames(x2)),]
+x2 <- as.matrix(x2)
 
+# library(SingleCellExperiment)
+# sce <- SingleCellExperiment(list(counts = x2))
 
-xhvg <- x[match(hvg, rownames(x)),]
-xhvg <- xhvg[match(rownames(target), rownames(xhvg)),]
-
-
-#gs_gene_sds <- apply(target, 2, FUN=function(x) mean(matrixStats::rowSds(as.matrix(xhvg[x==1,]))))
-
-
-###############
-## select gene sets based on information content
-################
-## cell-wise L1 normalisation
-L1 <- apply(xhvg, 2, FUN=function(x) x/sum(abs(x)))
+# save(x2, target, file = "RData_files_for_method_evals/cellassign_data_lung_reprocessed_19092021.RData")
 
 
 
-entropies <- apply(target, 2, FUN=function(x) {
-  p <- rowMeans(as.matrix(L1[x==1,]))
-  -sum(p*log(p))
-})
-
-
-entropies[order(entropies, decreasing = TRUE)]
-
-##################
-# based on variance explained
-###################
-gsmat <- genesets2ids(x, lung_markers)
-xpearson <- x[match(rownames(gsmat), rownames(x)),]
-
-mean_pearson_rss <- apply(gsmat, 2, FUN=function(x) {
-  # note in seurat these are pearson residulas
-  p <- rowSums(as.matrix(xpearson[x==1,]), na.rm = TRUE)
-  mean(p)
-})
-
-
-z <- mean_pearson_rss
-ztrim <- quantile(z, probs = 0.05, na.rm = TRUE)
-z[z >= ztrim]
-
-#selected_gs <- names(z[z >= ztrim])
 
 
 
-#target <- target[, selected_gs]
-
-
-target <- target[,colSums(target) > 0]
+# target <- target[,colSums(target) > 0]
 
 head(target)
 dim(target)
@@ -387,7 +272,7 @@ p3 <- DimPlot(bcdata, cols = godsnot_102) + theme_void() # zeileis_28
 
 
 
-#table(preds2, bcdata$celltype)
+table(preds2, bcdata$celltype)
 
 
 pred_scores <- ann_res$uncertainty
