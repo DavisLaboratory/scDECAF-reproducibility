@@ -1,0 +1,227 @@
+---
+title: "seurat"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(Seurat)
+library(scmap)
+```
+
+# Purified PBMC using PBMC8k as reference
+```{r}
+load("../pbmc8k_3k_hvg_seuratObj.RData")
+ref
+
+# query
+load("../sorted_pbmc_seuratObj_5k_hvg.RData")
+sorted.pbmc
+```
+
+
+```{r}
+
+
+pbmc.anchors <- FindTransferAnchors(reference = ref, query = sorted.pbmc, 
+    dims = 1:30)
+predictions <- TransferData(anchorset = pbmc.anchors, refdata = ref$celltype, 
+    dims = 1:30)
+sorted.pbmc <- AddMetaData(sorted.pbmc, metadata = predictions)
+
+
+
+
+
+plot(
+  getSankey(
+    gsub("(.*)_(.*)","\\1", names(sorted.pbmc$orig.ident)),
+    sorted.pbmc$predicted.id,
+    
+    #plot_height = 400
+  )
+)
+
+#save(sorted.pbmc, file = "sorted_pbmc_seurat_transferData_preds.RData")
+
+```
+
+
+# TM lung 10X
+```{r}
+# reference
+countdata <- read.csv("../human_lung_cell_atlas/mouse_droplet_TMS_UMIs.csv")
+meta <- read.csv("../human_lung_cell_atlas/mouse_droplet_TMS_metadata.csv")
+
+rownames(countdata) <- countdata$X
+countdata$X <- NULL
+
+
+# using Seurat for normalization --- 
+
+
+refdata <- CreateSeuratObject(counts = countdata)
+refdata <- SCTransform(object = refdata, verbose = FALSE, variable.features.n = 3000)
+refdata
+
+refdata$celltype <- meta$free_annotation
+
+
+
+# query
+
+load("../tabula_muris/TM_lung_10X_seuratObj.RData")
+bcdata
+
+meta <- read.csv("../tabula_muris/annotations_droplet.csv") 
+meta <- meta[meta$tissue == "Lung",]
+
+meta$cell_id <- paste0(meta$cell,"-1")
+
+
+
+celltypes <- meta$cell_ontology_class
+names(celltypes) <- meta$cell_id
+
+bcdata$labels <- celltypes
+```
+
+
+```{r}
+
+
+lung.anchors <- FindTransferAnchors(reference = refdata, query = bcdata, 
+    dims = 1:30)
+predictions <- TransferData(anchorset = lung.anchors, refdata = refdata$celltype, 
+    dims = 1:30)
+bcdata <- AddMetaData(bcdata, metadata = predictions)
+
+
+
+load("TM_lung_10X_seurat_transferData_preds.RData")
+
+plot(
+  getSankey(
+    bcdata$labels,
+    bcdata$predicted.id,
+    
+    #plot_height = 400
+  )
+)
+
+#save(bcdata, file = "TM_lung_10X_seurat_transferData_preds.RData")
+
+```
+
+
+# Pancreas using muraro as reference and baron as query
+
+```{r}
+library(scRNAseq)
+
+baron <- BaronPancreasData('human')
+seger <- SegerstolpePancreasData()
+
+
+# drop unclassified endocrine (n=41 cells), unclassified cell (n=2) and coexpression (n=39)
+label_isnot_na <- (!is.na(seger$`cell type`))
+valid_labels <- (!seger$`cell type` %in% c("unclassified cell", "unclassified endocrine cell",
+                                             "co-expression cell"))
+
+
+
+table(label_isnot_na & valid_labels)
+
+
+ref <- CreateSeuratObject(counts = assay(seger)[, label_isnot_na & valid_labels])
+baron_query <- CreateSeuratObject(counts = assay(baron))
+
+
+ref <- SCTransform(object = ref, verbose = FALSE, variable.features.n = 2000)
+baron_query <- SCTransform(object = baron_query, verbose = FALSE, variable.features.n = 2000)
+
+
+pancreas.anchors <- FindTransferAnchors(reference = ref, query = baron_query, 
+    dims = 1:30, k.filter = 2000) # k.filter = 2000
+predictions <- TransferData(anchorset = pancreas.anchors, 
+                            refdata = seger$`cell type`[label_isnot_na & valid_labels], 
+                            dims = 1:30)
+baron_query <- AddMetaData(baron_query, metadata = predictions)
+
+
+
+plot(
+  getSankey(
+   baron$label,
+    baron_query$predicted.id,
+    
+    #plot_height = 400
+  )
+)
+
+
+
+# save(baron_query, file = "../benchmarking/RData_files_for_method_evals/0821_baron_pancreas_seurat_preds.RData")
+```
+
+
+# Dentate Gyrus
+
+```{r}
+
+## reference----
+meta <- read.delim("../cortext_linnarssonlab/GSE104323_metadata_barcodes_24185cells.txt") # appropriate as reference
+table(meta$characteristics..cell.cluster)
+
+meta$cell_id <- paste0("X", gsub("-",".", meta$Sample.name..24185.single.cells.))
+
+countdata <- read.delim("../cortext_linnarssonlab/GSE104323_10X_expression_data_V2.tab")
+rownames(countdata) <- countdata$cellid
+countdata$cellid <- NULL
+
+brain_ref <- CreateSeuratObject(counts = countdata)
+brain_ref <- SCTransform(object = brain_ref, verbose = FALSE, variable.features.n = 3000)
+
+# query -----
+countdata <- read.delim("../cortext_linnarssonlab/GSE95315_10X_expression_data_v2.tab") # appropriate as query
+table(as.character(countdata[2,]))
+query_labels <- as.character(countdata[2,])[-1]
+rownames(countdata) <- countdata$cellid
+countdata <- countdata[-c(1:2),]
+
+countdata$cellid <- NULL
+
+
+
+brain_query <- CreateSeuratObject(counts = countdata)
+brain_query <- SCTransform(object = brain_query, verbose = FALSE, variable.features.n = 3000)
+
+
+
+brain.anchors <- FindTransferAnchors(reference = brain_ref, query = brain_query, 
+    dims = 1:30) # k.filter = 2000
+predictions <- TransferData(anchorset = brain.anchors, 
+                            refdata = meta$characteristics..cell.cluster[match(colnames(brain_ref), meta$cell_id)], 
+    dims = 1:30)
+brain_query <- AddMetaData(brain_query, metadata = predictions)
+
+
+
+
+
+plot(
+  getSankey(
+   query_labels,
+    brain_query$predicted.id,
+    
+    #plot_height = 400
+  )
+)
+
+#save(brain_query, file="brain_seurat_preds.RData")
+
+```
+

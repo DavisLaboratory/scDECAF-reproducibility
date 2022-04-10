@@ -1,0 +1,399 @@
+---
+title: "annotation_F1_evals"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(Seurat)
+library(SummarizedExperiment)
+library(scmap)
+library(ggplot2)
+library(ggsci)
+```
+
+
+Three datasets: Purified PBMC, lung, brain
+Dataframe should capture dataset, cell name, true label, pred label, binary indicator whether the prediction is correct, and the method.
+```{r}
+
+# sorted pbmc
+seurat_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/sorted_pbmc_seurat_transferData_preds.RData")
+scmap_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/sorted_pbmc_scmap_preds.RData")
+singler_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/SingleR_preds_sorted_pbmc.RData")
+garnett_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/garnett_pbmc_sorted.RData")
+scdecaf_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/sorted_pbmc_scDECAF_preds.RData")
+
+ggdat_pbmc <- data.frame(cells = ann_res$cell,
+                         dataset = rep("sorted_pbmc", nrow(ann_res)),
+                         true_labels  = gsub("(.*)_(.*)","\\1", ann_res$cell),
+                         scDECAF = ann_res$reassigned_celltype,
+                         garnett = pbmc_cds$cell_type,
+                         scmap = as.character(scmapCell_clusters_sortedpbmc$scmap_cluster_labs),
+                         singler = pred.sortedPPMC$labels,
+                         seurat = sorted.pbmc$predicted.id)
+
+
+
+
+renamed_ref_celltypes <- ggdat_pbmc$true_labels
+renamed_ref_celltypes <- gsub("Memory T cells|Naive CD4 T cells|Regulatory T cells|CD4 T helper","CD4 T cells",
+                              renamed_ref_celltypes)
+
+
+
+renamed_ref_celltypes <- gsub("Cytotoxic T cells|Naive CD8 T cells","CD8 T cells",renamed_ref_celltypes)
+
+
+# need accuracy per cell type per dataset, and the population size for each celltype per dataset
+#the proportion of a cell type in the total population
+n_by_celltype <- table(renamed_ref_celltypes)
+celltype_props_in_total_population <- n_by_celltype/nrow(ggdat_pbmc)
+
+
+
+ggdat_pbmc <- reshape2::melt(ggdat_pbmc, id = c("cells","dataset","true_labels"))
+
+
+equivalent_labels <- list("B cells" = "B cells",
+                          "CD14 Monocytes" = c("CD14+ Monocytes","Monocytes"),
+                          "CD56 NK" = c("NK cells", "Natural killer cell"),
+                          "CD4 T cells" = c("CD4 T cells", "CD4+ T cell"),
+                          "CD8 T cells" = c("CD8+ T cell","CD8 T cells")
+                          )
+
+
+
+
+reference_celltypes <- unique(renamed_ref_celltypes)
+
+per_cell_type_f1 <- list()
+
+for (i in reference_celltypes){
+  accpted_labels <- equivalent_labels[[i]]
+  pred_status <- ifelse(ggdat_pbmc$value[renamed_ref_celltypes == i] %in% accpted_labels,                                                                1,0)
+  true_positives <- table(ggdat_pbmc$variable[renamed_ref_celltypes == i], pred_status)[,"1"]
+  false_negatives <- table(ggdat_pbmc$variable[renamed_ref_celltypes == i], pred_status)[,"0"]
+  pred_negs <- ifelse(ggdat_pbmc$value[renamed_ref_celltypes != i] %in% accpted_labels,
+                                                                 1,0)
+  false_positives <- ifelse(length(unique(pred_negs))>1, table(ggdat_pbmc$variable[renamed_ref_celltypes != i], 
+                                                               pred_negs)[,"1"],0)
+  precision <- true_positives/(true_positives+false_positives)
+  recall <- true_positives/(true_positives+false_negatives)
+  per_cell_type_f1[[i]] <- 2*(precision*recall/(precision+recall))
+  
+}
+
+per_cell_type_f1 <- do.call(cbind, per_cell_type_f1)
+per_cell_type_f1 <- data.frame(per_cell_type_f1, method = rownames(per_cell_type_f1))
+per_cell_type_f1 <- reshape2::melt(per_cell_type_f1, id = "method")
+
+per_cell_type_f1$variable <- gsub("\\."," ", per_cell_type_f1$variable)
+per_cell_type_f1$celltype_prop_in_ref <- as.numeric(celltype_props_in_total_population[as.character(per_cell_type_f1$variable)])
+
+
+per_cell_type_f1$variable <- factor(per_cell_type_f1$variable, levels = names(celltype_props_in_total_population)[order(celltype_props_in_total_population)])
+per_cell_type_f1$method <- factor(per_cell_type_f1$method, levels = c("scDECAF","singler", "seurat","scmap","garnett"))
+
+ggplot(per_cell_type_f1, aes(x=variable, y = value, size = celltype_prop_in_ref, color= method)) +
+  geom_jitter(width = 0.11) + scale_color_manual(values = c("garnett" = "blue",
+                                              "scmap"="darkgreen", "singler"="green", "seurat"="orange", "scDECAF" = "red")) +
+  labs(x="", y="F1 - Sorted PBMC")  +
+  theme_minimal() +
+   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size=11),
+         axis.title.y = element_text(vjust = 3, hjust = 0.5, size = 12), legend.position = "none") +
+  coord_fixed(ratio=2.5) 
+
+# Boxplot
+
+ggplot(per_cell_type_f1, aes(x=method, y = value, fill=method)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("garnett" = "blue",
+                                              "scmap"="darkgreen", "singler"="green", "seurat"="orange", "scDECAF" = "red")) +
+  labs(x="", y="F1 - Sorted PBMC")  +
+  theme_minimal() +
+   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size=11),
+         axis.title.y = element_text(vjust = 3, hjust = 0.5, size = 12), legend.position = "none") +
+  coord_fixed(ratio=2.5) +
+  scale_x_discrete(labels=c("garnett" = "Garnett",
+                                              "scmap"="Scmap", "singler"="SingleR", "seurat"="Seurat", "scDECAF" = "scDECAF"))
+
+```
+
+# lung
+```{r}
+
+seurat_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/TM_lung_10X_seurat_transferData_preds.RData")
+scmap_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/scmap_preds_TM_lung_10X.RData")
+singler_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/SingleR_preds_TM_lung_10X.RData")
+garnett_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/garnett_TM_lung_10X.RData")
+scdecaf_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/TM_lung_10x_scDECAD_preds.RData")
+
+ggdat_lung <- data.frame(cells = ann_res$cell,
+                         dataset = rep("TM_lung_10X", nrow(ann_res)),
+                         true_labels  = bcdata$labels,
+                         scDECAF = ann_res$reassigned_celltype,
+                         garnett = lung_cds$cell_type,
+                         scmap = as.character(scmapCell_clusters_TMLung10X$scmap_cluster_labs),
+                         singler = pred.tmLungs$labels,
+                         seurat = bcdata$predicted.id)
+
+
+
+
+ggdat_lung <- ggdat_lung[ggdat_lung$true_labels %in% c("alveolar macrophage",
+                                                       "B cell",
+                                                       "ciliated columnar cell of tracheobronchial tree",
+                                                       "classical monocyte",
+                                                       "non-classical monocyte",
+                                                       "stromal cell",
+                                                       "T cell",
+                                                       "type II pneumocyte"),]
+
+renamed_ref_celltypes <- ggdat_lung$true_labels
+renamed_ref_celltypes <- gsub("ciliated columnar cell of tracheobronchial tree","Ciliated cells",
+                              renamed_ref_celltypes)
+
+
+
+
+
+
+# need accuracy per cell type per dataset, and the population size for each celltype per dataset
+#the proportion of a cell type in the total population
+n_by_celltype <- table(renamed_ref_celltypes)
+celltype_props_in_total_population <- n_by_celltype/nrow(ann_res)
+
+
+
+ggdat_lung <- reshape2::melt(ggdat_lung, id = c("cells","dataset","true_labels"))
+
+
+equivalent_labels <- list("B cell" = c("B","B cell","B cells"),
+                          "alveolar macrophage" = c("Alveolar Macrophage","Alveolar macrophages","Macs/Monos/DCs"),
+                          "T cell" = c("CD4 T cells", "CD4+ T cell", "CD4+ T", "CD8+ T cell","CD8 T cells", "CD8+ T", "T cells"),
+                         "type II pneumocyte" =c("Alveolar","Pulmonary alveolar type II cells","Alveolar Epithelial Type 2"),
+                          "Ciliated cells" = c("Ciliated cells","Ciliated"),
+                          "stromal cell" =c("Adventitial Fibroblast","Alveolar Fibroblast","Myofibroblast","Pericyte",
+                                            "Fibroblasts","Fibroblast"),
+                          "classical monocyte" = c("Monocytes","Macs/Monos/DC","Granulocytes","Classical Monocyte",
+                                                   "Intermediate Monocyte","Myeloid Dendritic Type 1", "Myeloid Dendritic Type 2",
+                                                   "Plasmacytoid Dendritic"),
+                          "non-classical monocyte" = c("Monocytes","Macs/Monos/DC","Granulocytes","Classical Monocyte",
+                                                   "Intermediate Monocyte","Myeloid Dendritic Type 1", "Myeloid Dendritic Type 2",
+                                                   "Plasmacytoid Dendritic")
+                          )
+
+
+
+
+reference_celltypes <- unique(renamed_ref_celltypes)
+
+
+per_cell_type_f1 <- list()
+
+
+for (i in reference_celltypes){
+  accpted_labels <- equivalent_labels[[i]]
+  pred_status <- ifelse(ggdat_lung$value[renamed_ref_celltypes == i] %in% accpted_labels,                                                                1,0)
+  true_positives <- table(ggdat_lung$variable[renamed_ref_celltypes == i], pred_status)[,"1"]
+  false_negatives <- table(ggdat_lung$variable[renamed_ref_celltypes == i], pred_status)[,"0"]
+  pred_negs <- ifelse(ggdat_lung$value[renamed_ref_celltypes != i] %in% accpted_labels,
+                                                                 1,0)
+  false_positives <- ifelse(length(unique(pred_negs))>1, table(ggdat_lung$variable[renamed_ref_celltypes != i], 
+                                                               pred_negs)[,"1"],0)
+  precision <- true_positives/(true_positives+false_positives)
+  recall <- true_positives/(true_positives+false_negatives)
+  per_cell_type_f1[[i]] <- 2*(precision*recall/(precision+recall))
+  
+}
+
+per_cell_type_f1 <- do.call(cbind, per_cell_type_f1)
+per_cell_type_f1 <- data.frame(per_cell_type_f1, method = rownames(per_cell_type_f1))
+per_cell_type_f1 <- reshape2::melt(per_cell_type_f1, id = "method")
+
+
+per_cell_type_f1$variable <- gsub("non.classical","non-classical", per_cell_type_f1$variable)
+per_cell_type_f1$variable <- gsub("\\."," ", per_cell_type_f1$variable)
+per_cell_type_f1$celltype_prop_in_ref <- as.numeric(celltype_props_in_total_population[as.character(per_cell_type_f1$variable)])
+
+
+per_cell_type_f1$variable <- factor(per_cell_type_f1$variable, levels = names(celltype_props_in_total_population)[order(celltype_props_in_total_population)])
+per_cell_type_f1$method <- factor(per_cell_type_f1$method, levels = c("scDECAF","singler", "seurat","scmap","garnett"))
+
+ggplot(per_cell_type_f1, aes(x=variable, y = value, size = celltype_prop_in_ref, color= method)) +
+  geom_jitter(width = 0.115) + scale_color_manual(values = c("garnett" = "blue",
+                                              "scmap"="darkgreen", "singler"="green", "seurat"="orange", "scDECAF" = "red")) +
+  labs(x="", y="F1 - Tabula muris lung 10X")  +
+  theme_minimal() +
+   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size=11),
+         axis.title.y = element_text(vjust = 2, hjust = 0.5, size = 12), legend.position = "none") +
+  coord_fixed(ratio=2.5) 
+
+
+
+ggplot(per_cell_type_f1, aes(x=method, y = value, fill=method)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("garnett" = "blue",
+                                              "scmap"="darkgreen", "singler"="green", "seurat"="orange", "scDECAF" = "red")) +
+  labs(x="", y="F1 - Tabula muris lung 10X")  +
+  theme_minimal() +
+   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size=11),
+         axis.title.y = element_text(vjust = 3, hjust = 0.5, size = 12), legend.position = "none") +
+  coord_fixed(ratio=2.5) +
+  scale_x_discrete(labels=c("garnett" = "Garnett",
+                                              "scmap"="Scmap", "singler"="SingleR", "seurat"="Seurat", "scDECAF" = "scDECAF"))
+
+
+```
+
+
+
+# brain
+```{r}
+
+
+seurat_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/brain_seurat_preds.RData")
+scmap_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/brain_scmap_preds.RData")
+singler_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/brain_preds_singleR.RData")
+garnett_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/brain_preds_garnett.RData")
+scdecaf_preds <- load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/brain_scDECAF_preds.RData")
+
+
+countdata <- read.delim("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/cortext_linnarssonlab/GSE95315_10X_expression_data_v2.tab") # appropriate as query
+table(as.character(countdata[2,]))
+query_labels <- as.character(countdata[2,])[-1]
+
+ggdat_brain <- data.frame(cells = ann_res$cell,
+                         dataset = rep("brain", nrow(ann_res)),
+                         true_labels  = query_labels,
+                         scDECAF = ann_res$reassigned_celltype,
+                         garnett = brain_cds$cell_type,
+                         scmap = as.character(scmapCell_clusters_brain$scmap_cluster_labs),
+                         singler = pred.brain$labels,
+                         seurat = brain_query$predicted.id)
+
+
+
+
+ggdat_brain <- ggdat_brain[ggdat_brain$true_labels %in% c("Astrocytes",
+                                                       "Cajal-Retzius",
+                                                       "Endothelial",
+                                                       "Radial_Glia-like",
+                                                       "GABA-Lhx6", "GABA-Cnr1",
+                                                       "Granule-immature", "Granule-mature",
+                                                       "Microglia",
+                                                       #"Pericytes",
+                                                       "Neuroblast_1", "Neuroblast_2",
+                                                       "OL"),]
+
+
+
+renamed_ref_celltypes <- ggdat_brain$true_labels
+renamed_ref_celltypes <- gsub("OL", "Oligodendrocyte",
+                              renamed_ref_celltypes)
+
+renamed_ref_celltypes <- gsub("GABA-Lhx6|GABA-Cnr1", "GABA cells",
+                              renamed_ref_celltypes)
+
+
+renamed_ref_celltypes <- gsub("Granule-immature|Granule-mature", "Granule cells",
+                              renamed_ref_celltypes)
+
+renamed_ref_celltypes <- gsub("Neuroblast_1|Neuroblast_2", "Neuroblast",
+                              renamed_ref_celltypes)
+
+
+
+# need accuracy per cell type per dataset, and the population size for each celltype per dataset
+#the proportion of a cell type in the total population
+n_by_celltype <- table(renamed_ref_celltypes)
+celltype_props_in_total_population <- n_by_celltype/nrow(ann_res)
+
+
+
+ggdat_brain <- reshape2::melt(ggdat_brain, id = c("cells","dataset","true_labels"))
+
+
+equivalent_labels <- list("Astrocytes" = c("Astrocytes","Astro-adult","Astro-juv","Astrocyte","Immature-Astro"),
+                          "Cajal-Retzius" = c("Cajal-Retzius cell","Cajal-Retzius"),
+                          "Endothelial" = c("Vascular cells","Vascular endothelial cells","Endothelial","Endothelial cell"),
+                          "GABA cells" = c("GABA","Long-projecting GABAergic cell","Immature-GABA"),
+                          "Granule cells"= c("Immature-GC", "GC-adult","GC-juv","Neuron"),
+                          "Neuroblast" = c("Neuroblast"),
+                          "Microglia" = c("Microglia","Microglial cell"),
+                          "Oligodendrocyte" = c("Oligodendrocyte","OPC","NFOL","MOL"),
+                          "Radial_Glia-like" = c("Radial glia cells","RGL_young", "RGL","Dentate gyrus radial glia-like cells",
+                                                 "Subventricular zone radial glia-like cells")
+                          )
+
+
+
+
+reference_celltypes <- unique(renamed_ref_celltypes)
+
+
+per_cell_type_f1 <- list()
+
+
+for (i in reference_celltypes){
+  accpted_labels <- equivalent_labels[[i]]
+  pred_status <- ifelse(ggdat_brain$value[renamed_ref_celltypes == i] %in% accpted_labels,                                                                1,0)
+  true_positives <- table(ggdat_brain$variable[renamed_ref_celltypes == i], pred_status)[,"1"]
+  false_negatives <- table(ggdat_brain$variable[renamed_ref_celltypes == i], pred_status)[,"0"]
+  pred_negs <- ifelse(ggdat_brain$value[renamed_ref_celltypes != i] %in% accpted_labels,
+                                                                 1,0)
+  false_positives <- ifelse(length(unique(pred_negs))>1, table(ggdat_brain$variable[renamed_ref_celltypes != i], 
+                                                               pred_negs)[,"1"],0)
+  precision <- true_positives/(true_positives+false_positives)
+  recall <- true_positives/(true_positives+false_negatives)
+  per_cell_type_f1[[i]] <- 2*(precision*recall/(precision+recall))
+  
+}
+
+
+
+per_cell_type_f1 <- do.call(cbind, per_cell_type_f1)
+per_cell_type_f1 <- data.frame(per_cell_type_f1, method = rownames(per_cell_type_f1))
+per_cell_type_f1 <- reshape2::melt(per_cell_type_f1, id = "method")
+
+
+per_cell_type_f1$variable <- gsub("Cajal.Retzius","Cajal-Retzius", per_cell_type_f1$variable)
+per_cell_type_f1$variable <- gsub("Radial_Glia.like","Radial_Glia-like", per_cell_type_f1$variable)
+per_cell_type_f1$variable <- gsub("\\."," ", per_cell_type_f1$variable)
+per_cell_type_f1$celltype_prop_in_ref <- as.numeric(celltype_props_in_total_population[as.character(per_cell_type_f1$variable)])
+
+
+per_cell_type_f1$variable <- factor(per_cell_type_f1$variable, levels = names(celltype_props_in_total_population)[order(celltype_props_in_total_population)])
+per_cell_type_f1$method <- factor(per_cell_type_f1$method, levels = c("scDECAF","singler", "seurat","scmap","garnett"))
+
+ggplot(per_cell_type_f1, aes(x=variable, y = value, size = celltype_prop_in_ref, color= method)) +
+  geom_jitter(width = 0.2) + scale_color_manual(values = c("garnett" = "blue",
+                                              "scmap"="darkgreen", "singler"="green", "seurat"="orange", "scDECAF" = "red")) +
+  labs(x="", y="F1 - Dentate Gyrus")  +
+  theme_minimal() +
+   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size=11),
+         axis.title.y = element_text(vjust = 2, hjust = 0.5, size = 12), legend.position = "none") +
+  scale_x_discrete(expand=c(0.12, 0.01)) +
+  coord_fixed(ratio=2.5) 
+
+
+
+ggplot(per_cell_type_f1, aes(x=method, y = value, fill=method)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("garnett" = "blue",
+                                              "scmap"="darkgreen", "singler"="green", "seurat"="orange", "scDECAF" = "red")) +
+  labs(x="", y="F1 - Dentate Gyrus")  +
+  theme_minimal() +
+   theme(axis.text.x = element_text(angle = -45, vjust = 1, hjust = 0, size=11),
+         axis.title.y = element_text(vjust = 3, hjust = 0.5, size = 12), legend.position = "none") +
+  coord_fixed(ratio=2.5) +
+  scale_x_discrete(labels=c("garnett" = "Garnett",
+                                              "scmap"="Scmap", "singler"="SingleR", "seurat"="Seurat", "scDECAF" = "scDECAF"))
+
+```
+
+

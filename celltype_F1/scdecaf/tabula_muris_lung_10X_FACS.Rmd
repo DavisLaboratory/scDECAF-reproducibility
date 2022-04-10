@@ -1,0 +1,411 @@
+---
+title: "tabula_muris_lung_10X_FACS"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+zeileis_28 = c(
+    "#023fa5", "#7d87b9", "#bec1d4", "#d6bcc0", "#bb7784", "#8e063b", "#4a6fe3",
+    "#8595e1", "#b5bbe3", "#e6afb9", "#e07b91", "#d33f6a", "#11c638", "#8dd593",
+    "#c6dec7", "#ead3c6", "#f0b98d", "#ef9708", "#0fcfc0", "#9cded6", "#d5eae7",
+    "#f3e1eb", "#f6c4e1", "#f79cd4", "navy",
+    '#7f7f7f', "#c7c7c7", "#1CE6FF", "#336600"  # these last ones were added,
+)
+
+
+godsnot_102 = c(
+    # "#000000",  # remove the black, as often, we have black colored annotation
+    "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059",
+    "#FFDBE5", "#7A4900", "#0000A6", "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87",
+    "#5A0007", "#809693", "#6A3A4C", "#1B4400", "#4FC601", "#3B5DFF", "#4A3B53", "#FF2F80",
+    "#61615A", "#BA0900", "#6B7900", "#00C2A0", "#FFAA92", "#FF90C9", "#B903AA", "#D16100",
+    "#DDEFFF", "#000035", "#7B4F4B", "#A1C299", "#300018", "#0AA6D8", "#013349", "#00846F",
+    "#372101", "#FFB500", "#C2FFED", "#A079BF", "#CC0744", "#C0B9B2", "#C2FF99", "#001E09",
+    "#00489C", "#6F0062", "#0CBD66", "#EEC3FF", "#456D75", "#B77B68", "#7A87A1", "#788D66",
+    "#885578", "#FAD09F", "#FF8A9A", "#D157A0", "#BEC459", "#456648", "#0086ED", "#886F4C",
+    "#34362D", "#B4A8BD", "#00A6AA", "#452C2C", "#636375", "#A3C8C9", "#FF913F", "#938A81",
+    "#575329", "#00FECF", "#B05B6F", "#8CD0FF", "#3B9700", "#04F757", "#C8A1A1", "#1E6E00",
+    "#7900D7", "#A77500", "#6367A9", "#A05837", "#6B002C", "#772600", "#D790FF", "#9B9700",
+    "#549E79", "#FFF69F", "#201625", "#72418F", "#BC23FF", "#99ADC0", "#3A2465", "#922329",
+    "#5B4534", "#FDE8DC", "#404E55", "#0089A3", "#CB7E98", "#A4E804", "#324E72"
+)
+
+```
+
+```{r}
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(uwot)
+library(scmap)
+
+#source("scDECAF_devel.R")
+
+devtools::load_all("../scDECAF/")
+```
+
+
+# Lung 10X
+
+```{r}
+dir_names <- grep("Lung", list.dirs("tabula_muris/droplet"), value = TRUE)
+seuratObjs <- list()
+
+for(j in seq_along(dir_names)){
+
+  projName <- gsub("(.*)/(.*)/(.*)","\\3", dir_names[j])
+  projName <- gsub("Lung-","", projName)
+  seuratObjs[[projName]] <- CreateSeuratObject(counts = Read10X(dir_names[j]))
+
+}
+
+
+bcdata <- merge(seuratObjs[[1]],
+                  y = Reduce(c,seuratObjs[-1]),
+                  add.cell.ids = names(seuratObjs),
+                  project = "lung-10x")
+
+bcdata
+
+```
+
+```{r}
+meta <- read.csv("tabula_muris/annotations_droplet.csv") 
+meta <- meta[meta$tissue == "Lung",]
+
+meta$cell_id <- paste0(meta$cell,"-1")
+
+table(meta$cell_ontology_class)
+
+table(is.na(match(meta$cell_id, colnames(bcdata))))
+bcdata <- bcdata[,match(meta$cell_id, colnames(bcdata))]
+
+
+celltypes <- meta$cell_ontology_class
+names(celltypes) <- meta$cell_id
+bcdata$celltype <- celltypes
+
+
+bcdata$celltype[bcdata$celltype==""] <- "unknown"
+#bcdata$celltype <- gsub("ciliated columnar cell of tracheobronchial tree","ciliated", bcdata$celltype)
+
+
+bcdata <- bcdata[,!bcdata$celltype %in% "unknown"]
+table(bcdata$celltype)
+
+bcdata <- SCTransform(object = bcdata, verbose = FALSE, variable.features.n = 5000)
+bcdata
+
+dim(x = GetAssayData(object = bcdata, slot = 'scale.data'))
+ 
+
+bcdata <- RunUMAP(object = bcdata, features = VariableFeatures(object = bcdata), 
+                  reduction.key = 'scumap_', reduction.name = 'scumap', n.neighbors = 15)
+
+# bcdata <- RunPCA(bcdata, verbose = FALSE)
+# bcdata <- RunTSNE(object = bcdata, features = VariableFeatures(object = bcdata), 
+#                   reduction.key = 'sctsne_', reduction.name = 'sctsne')
+
+
+
+
+
+
+Idents(bcdata) <- bcdata$celltype
+
+p1 <- DimPlot(bcdata, cols = godsnot_102, order = TRUE) + theme_void()
+```
+
+
+```{r}
+
+load("lung_mapping/LungMapping_PanglaoDB_HJW.Rdata")
+
+lung_label_panglao
+
+
+panglao <- read.delim("PanglaoDB_markers_27_Mar_2020.tsv", stringsAsFactors = FALSE)
+
+# lung_markers <- cellmarker[cellmarker$tissueType %in% c("Lung"),]
+# #table(pb_markers$cellName)
+# lung_markers <- unique(lung_markers)
+# lung_markers <- split(lung_markers$geneSymbol, as.factor(lung_markers$cellName))
+# 
+# 
+# 
+# lung_markers <- lapply(lung_markers, FUN=function(x) {
+#   z <- unlist(strsplit(x, split = ","))
+#   z <- unique(gsub(" |\\[|\\]","", z))
+# })
+# 
+# 
+# 
+# keep_lung <- c(#"Type I pneumocyte", 
+#                #"Type II pneumocyte",
+#                "Epithelial cell",
+#                "Endothelial cell",
+#                #"Clara cell", 
+#                #"Alveolar macrophage",
+#                #"Fibroblast", 
+#                #"Myeloid cell",
+#                "Pericyte","Myofibroblast")
+# 
+# lung_markers <- lung_markers[keep_lung]
+
+
+
+
+lungs <- panglao[panglao$organ %in% unique(lung_label_panglao$PanglaoOrgan), 
+                 c("cell.type", "official.gene.symbol")]
+
+lungs <- unique(lungs)
+lungs <- split(lungs$official.gene.symbol, as.factor(lungs$cell.type))
+
+
+keep <- unique(lung_label_panglao$Panglao)
+
+keep <- gsub("Basophil", "Basophils", keep)
+keep <- gsub("Neutrophil", "Neutrophils", keep)
+keep <- gsub("Eosinophil", "Eosinophils", keep)
+
+table(keep %in% names(lungs))
+
+lungs <- lungs[keep]
+
+names(lungs)
+
+```
+
+
+```{r}
+# load Holly's curated list of signatures
+
+# load("lung_mapping/PanglaoDB_lungmarkers_HJW.Rdata")
+
+
+
+# map HS genes to MM genes
+ms <- read.delim("../../genomes/DATA/HMD_HumanPhenotype.rpt", header = FALSE)
+
+
+
+lung_markers <- lapply(lungs, FUN=function(x) {
+   genes <- ms$V5[match(x, ms$V1)]
+   genes[!is.na(genes)]
+})
+
+```
+
+
+```{r}
+dim(x = GetAssayData(object = bcdata, slot = 'data'))
+x <- GetAssayData(object = bcdata, slot = 'data') # same as x <- bcdata[["SCT"]]@data, contains log-normalised values
+
+x <- as.matrix(x)
+
+hvg <- VariableFeatures(object = bcdata)
+
+
+target <- scDECAF::genesets2ids(x[match(hvg, rownames(x)),], lung_markers) # x[match(hvg, rownames(x)),]
+
+table(colSums(target) > 0)
+
+## prepare and save cellassign data
+
+x2 <- GetAssayData(object = bcdata, slot = 'counts')
+x2 <- x2[match(rownames(target), rownames(x2)),]
+x2 <- as.matrix(x2)
+
+# library(SingleCellExperiment)
+# sce <- SingleCellExperiment(list(counts = x2))
+
+# save(x2, target, file = "RData_files_for_method_evals/cellassign_data_lung_reprocessed_19092021.RData")
+
+
+
+
+
+
+# target <- target[,colSums(target) > 0]
+
+head(target)
+dim(target)
+
+xt <- x[match(rownames(target), rownames(x)),]
+```
+
+```{r}
+cell_embeddings <- bcdata@reductions$scumap@cell.embeddings
+#cell_embeddings <- bcdata@reductions$pca@cell.embeddings
+cell_embeddings <- cell_embeddings[match(colnames(xt), rownames(cell_embeddings)),]
+
+
+x <- as.matrix(x)
+
+ann_res <- scDECAF(data = x, gs = target, standardize = TRUE, 
+                   hvg = hvg, k = 100, embedding = cell_embeddings,
+                   n_components = ncol(target) - 1, max_iter = 2, thresh = 0.5)
+
+
+preds <- ann_res$pred_celltype
+names(preds) <- ann_res$cell
+
+bcdata$pred_celltype <- preds
+Idents(bcdata) <- bcdata$pred_celltype
+p2 <- DimPlot(bcdata, cols = godsnot_102) + theme_void() # zeileis_28
+
+
+
+preds2 <- ann_res$reassigned_celltype
+names(preds2) <- ann_res$cell
+
+bcdata$pred_celltype2 <- preds2
+Idents(bcdata) <- bcdata$pred_celltype2
+p3 <- DimPlot(bcdata, cols = godsnot_102) + theme_void() # zeileis_28
+
+
+
+table(preds2, bcdata$celltype)
+
+
+pred_scores <- ann_res$uncertainty
+names(pred_scores) <- ann_res$cell
+
+bcdata <- AddMetaData(bcdata, pred_scores, "pred_score")
+p4 <- FeaturePlot(bcdata, features = "pred_score", cols = c( "red", "blue"),
+                  #cells = names(bcdata$pred_celltype[grepl("Macrophage", bcdata$pred_celltype)]),
+                 pt.size = 0.05) + theme_void()
+
+
+nn_preserve <- ann_res$prop_neighbourhood_preserved
+names(nn_preserve) <- ann_res$cell
+
+bcdata <- AddMetaData(bcdata, nn_preserve, "nn_preserve")
+p5 <- FeaturePlot(bcdata, features = "nn_preserve", cols = c( "white", "red"),
+                  #cells = names(bcdata$pred_celltype[grepl("Macrophage", bcdata$pred_celltype)]),
+                 pt.size = 0.05) + theme_void()
+
+
+# references
+## Vegfa as marker of AT1 but not AT2
+# https://dev.biologists.org/content/143/1/54
+#
+# https://www.biorxiv.org/content/10.1101/742320v1.full.pdf
+
+p6 <- FeaturePlot(bcdata, features = c("Vegfa", "Hhip", "Sftpc","Nkx2-1","Atf3", "Id3"), 
+                  order = TRUE,
+                  #cols = c( "white", "red"),
+                  #cells = names(bcdata$pred_celltype[grepl("Macrophage", bcdata$pred_celltype)]),
+                 pt.size = 0.05) + theme_void()
+
+
+
+
+#(p1+p12)/(p2+p3)
+#(p1+p3)/(p4+p5)
+
+# cowplot::plot_grid(p1,p3,p4,p5, ncol=2)
+
+cowplot::plot_grid(p1, NULL,p3, nrow=3, rel_heights = c(0.9,0.2, 0.9))
+
+plot(
+  getSankey(
+    bcdata$celltype,
+    preds2,
+    #plot_height = 600
+  )
+)
+
+
+plot(
+  getSankey(
+    bcdata$celltype,
+    preds,
+    plot_height = 400
+  )
+)
+
+preds3 <- preds2
+preds3[pred_scores > 0.5] <- "Unknown"
+
+plot(
+  getSankey(
+    bcdata$celltype,
+    preds3,
+    plot_height = 400
+  )
+)
+
+
+preds4 <- preds2
+preds4[nn_preserve < 0.2] <- "Unknown"
+
+plot(
+  getSankey(
+    bcdata$celltype,
+    preds4,
+    plot_height = 400
+  )
+)
+```
+
+
+
+compare with garnett
+```{r}
+load("garnett/garnett_TM_lung_10X.RData")
+plot(
+  getSankey(
+    bcdata$celltype,
+    pData(lung_cds)$cell_type,
+    
+    #plot_height = 400
+  )
+)
+```
+
+
+
+# Lung FACS
+```{r}
+countdata <- read.csv("tabula_muris/FACS/Lung-counts.csv")
+rownames(countdata) <- countdata$X
+countdata$X <- NULL
+
+meta <- read.csv("tabula_muris/annotations_FACS.csv") 
+meta <- meta[match(colnames(countdata), meta$cell),]
+
+table(meta$cell_ontology_class)
+
+
+projName <- "lung"
+bcdata <- CreateSeuratObject(counts = countdata, project = projName)
+celltypes <- meta$cell_ontology_class
+names(celltypes) <- meta$cell
+bcdata$celltype <- celltypes
+
+bcdata
+
+
+bcdata <- SCTransform(object = bcdata, verbose = FALSE, variable.features.n = 1000)
+bcdata
+
+dim(x = GetAssayData(object = bcdata, slot = 'scale.data'))
+ 
+
+bcdata <- RunUMAP(object = bcdata, features = VariableFeatures(object = bcdata), 
+                  reduction.key = 'scumap_', reduction.name = 'scumap')
+
+
+Idents(bcdata) <- bcdata$celltype
+
+p1 <- DimPlot(bcdata, cols = zeileis_28, order = TRUE) + theme_void()
+```
+
