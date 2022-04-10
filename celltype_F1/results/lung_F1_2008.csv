@@ -1,0 +1,144 @@
+,Methods,Cell Type,F1
+1,scDECAF,myeloid cell,0.960893854748603
+2,scDECAF,alveolar macrophage,0.994186046511628
+3,scDECAF,B cell,0.995073891625616
+4,scDECAF,natural killer cell,0.982175783650891
+5,scDECAF,T cell,0.987903225806452
+6,scDECAF,lung endothelial cell,0.985976267529666
+7,scDECAF,stromal cell,0.810196987253766
+8,scDECAF,non-classical monocyte,0
+9,scDECAF,leukocyte,0.816326530612245
+10,scDECAF,classical monocyte,0.553415061295972
+11,scDECAF,ciliated columnar cell of tracheobronchial tree,1
+12,scDECAF,type II pneumocyte,0.983425414364641
+13,scDECAF,mast cell,0
+14,cellid,myeloid cell,0.918032786885246
+15,cellid,alveolar macrophage,0.688053097345133
+16,cellid,B cell,0.990243902439024
+17,cellid,natural killer cell,0.981481481481482
+18,cellid,T cell,0.975903614457831
+19,cellid,lung endothelial cell,0.971553610503282
+20,cellid,stromal cell,0.751780014731156
+21,cellid,non-classical monocyte,0
+22,cellid,leukocyte,0.854489164086687
+23,cellid,classical monocyte,0.887372013651877
+24,cellid,ciliated columnar cell of tracheobronchial tree,0.819277108433735
+25,cellid,type II pneumocyte,0.98876404494382
+26,cellid,mast cell,0
+27,aucell,myeloid cell,0.795321637426901
+28,aucell,alveolar macrophage,0.889784946236559
+29,aucell,B cell,0.990196078431373
+30,aucell,natural killer cell,0.968905472636816
+31,aucell,T cell,0.941176470588235
+32,aucell,lung endothelial cell,0.970099667774086
+33,aucell,stromal cell,0.657548658600736
+34,aucell,non-classical monocyte,0
+35,aucell,leukocyte,0.704545454545455
+36,aucell,classical monocyte,0.538310412573674
+37,aucell,ciliated columnar cell of tracheobronchial tree,0.951456310679612
+38,aucell,type II pneumocyte,0.978021978021978
+39,aucell,mast cell,0
+40,vision,myeloid cell,0.830601092896175
+41,vision,alveolar macrophage,0.91588785046729
+42,vision,B cell,0.990291262135922
+43,vision,natural killer cell,0.985949908368968
+44,vision,T cell,0.977777777777778
+45,vision,lung endothelial cell,0.972314507198228
+46,vision,stromal cell,0.64162003730349
+47,vision,non-classical monocyte,0
+48,vision,leukocyte,0.764912280701754
+49,vision,classical monocyte,0.550495049504951
+50,vision,ciliated columnar cell of tracheobronchial tree,0.97029702970297
+51,vision,type II pneumocyte,0.983425414364641
+52,vision,mast cell,0
+53,cellassign,myeloid cell,0.784810126582278
+54,cellassign,alveolar macrophage,0.638418079096045
+55,cellassign,B cell,0.971428571428571
+56,cellassign,natural killer cell,0.990349819059107
+57,cellassign,T cell,0.973630831643002
+58,cellassign,lung endothelial cell,0.951496388028896
+59,cellassign,stromal cell,0.295873867829587
+60,cellassign,non-classical monocyte,0
+61,cellassign,leukocyte,0.878504672897196
+62,cellassign,classical monocyte,0.112994350282486
+63,cellassign,ciliated columnar cell of tracheobronchial tree,0.97029702970297
+64,cellassign,type II pneumocyte,0.972677595628415
+65,cellassign,mast cell,0
+66,singscore,myeloid cell,0.699300699300699
+67,singscore,alveolar macrophage,0.842105263157895
+68,singscore,B cell,0.985507246376812
+69,singscore,natural killer cell,0.958490566037736
+70,singscore,T cell,0.945945945945946
+71,singscore,lung endothelial cell,0.959641255605381
+72,singscore,stromal cell,0.430418719211823
+73,singscore,non-classical monocyte,0
+74,singscore,leukocyte,0.781362007168459
+75,singscore,classical monocyte,0.567099567099567
+76,singscore,ciliated columnar cell of tracheobronchial tree,0.98
+77,singscore,type II pneumocyte,0.983425414364641
+78,singscore,mast cell,0
+79,garnett,myeloid cell,0
+80,garnett,alveolar macrophage,0.0037037037037037
+81,garnett,B cell,0.975
+82,garnett,natural killer cell,0.513004484304933
+83,garnett,T cell,0.952965235173824
+84,garnett,lung endothelial cell,0.87396937573616
+85,garnett,stromal cell,0.640191897654584
+86,garnett,non-classical monocyte,0
+87,garnett,leukocyte,0
+88,garnett,classical monocyte,0
+89,garnett,ciliated columnar cell of tracheobronchial tree,0.95049504950495
+90,garnett,type II pneumocyte,0
+91,garnett,mast cell,0
+92,scmap_cluster,myeloid cell,0.608
+93,scmap_cluster,alveolar macrophage,0.871125611745514
+94,scmap_cluster,B cell,0.744615384615385
+95,scmap_cluster,natural killer cell,0.97394540942928
+96,scmap_cluster,T cell,0.574712643678161
+97,scmap_cluster,lung endothelial cell,0.790155440414508
+98,scmap_cluster,stromal cell,0.952361480269883
+99,scmap_cluster,non-classical monocyte,0.85012285012285
+100,scmap_cluster,leukocyte,0.808219178082192
+101,scmap_cluster,classical monocyte,0.763358778625954
+102,scmap_cluster,ciliated columnar cell of tracheobronchial tree,0.979166666666667
+103,scmap_cluster,type II pneumocyte,0.935672514619883
+104,scmap_cluster,mast cell,0
+105,scmap_cell,myeloid cell,0.789115646258503
+106,scmap_cell,alveolar macrophage,0.940275650842266
+107,scmap_cell,B cell,0.997542997542998
+108,scmap_cell,natural killer cell,0.981039755351682
+109,scmap_cell,T cell,0.971074380165289
+110,scmap_cell,lung endothelial cell,0.980561555075594
+111,scmap_cell,stromal cell,0.991372549019608
+112,scmap_cell,non-classical monocyte,0.883295194508009
+113,scmap_cell,leukocyte,0.824324324324324
+114,scmap_cell,classical monocyte,0.856230031948882
+115,scmap_cell,ciliated columnar cell of tracheobronchial tree,0.989690721649485
+116,scmap_cell,type II pneumocyte,0.948571428571429
+117,scmap_cell,mast cell,0
+118,singler,myeloid cell,0.809248554913295
+119,singler,alveolar macrophage,0.911949685534591
+120,singler,B cell,0.995098039215686
+121,singler,natural killer cell,0.985294117647059
+122,singler,T cell,0.973415132924335
+123,singler,lung endothelial cell,0.981420765027322
+124,singler,stromal cell,0.992354440305822
+125,singler,non-classical monocyte,0.890269151138716
+126,singler,leukocyte,0.8
+127,singler,classical monocyte,0.843971631205674
+128,singler,ciliated columnar cell of tracheobronchial tree,1
+129,singler,type II pneumocyte,0.994350282485876
+130,singler,mast cell,0
+131,seurat,myeloid cell,0.853503184713376
+132,seurat,alveolar macrophage,0.940275650842266
+133,seurat,B cell,0.995098039215686
+134,seurat,natural killer cell,0.983384615384615
+135,seurat,T cell,0.975409836065574
+136,seurat,lung endothelial cell,0.977198697068404
+137,seurat,stromal cell,0.990029325513196
+138,seurat,non-classical monocyte,0.92
+139,seurat,leukocyte,0.824324324324324
+140,seurat,classical monocyte,0.888888888888889
+141,seurat,ciliated columnar cell of tracheobronchial tree,0.979166666666667
+142,seurat,type II pneumocyte,0.971098265895954
+143,seurat,mast cell,0
