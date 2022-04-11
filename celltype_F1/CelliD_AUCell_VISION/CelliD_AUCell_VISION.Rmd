@@ -1,0 +1,100 @@
+---
+title: "CelliD_AUCell_VISION"
+output: pdf_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Pancreas and Lungs celltype prediction using markers
+
+```{r}
+
+library(GSEABase)
+library(CelliD)
+library(AUCell)
+library(VISION)
+library(CHETAH)
+
+# Load pancreas SCE object and Gene Sets
+load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/pancreas.RData")
+load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/immune_cells_panlog.RData")
+all.sets <- lapply(names(immune_cells_panlog), function(x) {
+  GSEABase::GeneSet(immune_cells_panlog[[x]], setName=x)
+})
+pancreas_geneset <- GSEABase::GeneSetCollection(all.sets)
+
+# Load pancreas SCE object and Gene Sets
+load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/HJW_curated_lung_markers.RData")
+# load("/stornext/General/data/academic/lab_davis/Yi_Soroor/benchmarking/RData_files_for_method_evals/TM_reprocessed_seuratObj_19092021_R400.RData")
+# lung_new <- CelliD::RunMCA(bcdata)
+load("/stornext/General/data/academic/lab_davis/Malvika/scDECAF-reproducibility/lung_new.RData")
+lung_markers = lapply(lung_markers, unique)
+all.sets_lung <- lapply(names(lung_markers), function(x) {
+  GSEABase::GeneSet(lung_markers[[x]], setName=x)
+})
+lung_geneset <- GSEABase::GeneSetCollection(all.sets_lung)
+```
+
+# Function for running CelliD with SCE object and markers as inputs
+```{r}
+run_cellid <- function(scobj, markers){
+  cellid_hgt <- CelliD::RunCellHGT(scobj, markers)
+  gs_prediction <- rownames(cellid_hgt)[apply(cellid_hgt, 2, which.max)]
+  
+  # For each cell, evaluate if the lowest p-value is significant
+  gs_prediction_signif <- ifelse(apply(cellid_hgt, 2, max)>2, yes = gs_prediction, "unassigned")
+  
+  # Save cell type predictions as metadata within the Seurat object
+  scobj$predict<- gs_prediction_signif
+  return(scobj)
+}
+
+#Running Cellid for pancreas and lungs 
+pancreas_cellid <- run_cellid(pancreas, immune_cells_panlog)
+lung_cellid <- run_cellid(lung_new, lung_markers)
+```
+
+# Function for running AUCell with SCE object and markers as inputs
+```{r}
+run_aucell <- function(scobj, markers){
+  counts <- as.matrix(Seurat::GetAssayData(object = scobj, slot = "counts"))
+  sce.ranks <- AUCell::AUCell_buildRankings(counts, nCores=1, plotStats=FALSE)
+  cells_AUC <- AUCell::AUCell_calcAUC(markers, sce.ranks)
+  sce.scores <- AUCell::getAUC(cells_AUC)
+  scores <- sce.scores
+  cell_predict <- rownames(scores)[apply((scores), 2, which.max)]
+  cell_predict <- ifelse(apply(scores, 2, max)>0.1, yes = cell_predict, "unassigned")
+  scobj$predict <- cell_predict
+  return(scobj)
+}
+
+pancreas_aucell <- run_aucell(pancreas, pancreas_geneset)
+lung_aucell <- run_aucell(lung_new, lung_geneset)
+```
+
+# Function for running VISION with SCE object and markers as inputs
+```{r}
+run_vision <- function(scobj, scsigfile) {
+  # VISION requires .gmt files as signature inputs
+  scsig = GSEABase::getGmt(scsigfile)
+  n = length(scsig)
+  # get counts data from SCE object
+  counts <- sc_counts <- (Seurat::GetAssayData(object = scobj, slot = "counts"))
+  n.umi <- colSums(counts)
+  scaled_counts <- t(t(counts) / n.umi) * median(n.umi)
+  # score using VISION
+  vis <- VISION::Vision(scaled_counts, signatures = scsigfile)
+  anna_vis <- VISION::analyze(vis)
+  sce.scores <- t(VISION::getSignatureScores(anna_vis))
+  scores <- sce.scores
+  cell_predict <- rownames(scores)[apply((scores), 2, which.max)]
+  scobj$predict <- cell_predict
+  return(scobj)
+  
+}
+
+pancreas_vision <- run_vision(pancreas, "pancreas_geneset.gmt")
+lung_vision <- run_vision(lung_new, "lung_geneset.gmt")
+
+```
